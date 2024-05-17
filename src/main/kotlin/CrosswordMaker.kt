@@ -10,43 +10,36 @@ class CrosswordMaker(private val dictionary: Set<String>) {
         dictionary.filter { it.length == 5 }.forEach(trie::insert)
     }
 
-    fun createCrossword(): List<String> {
-        val startingWord = "strip"
-
-        val puzzle = listOf("goose")
+    fun createCrossword(initialPuzzle: Crossword? = null): Crossword? {
+        val puzzle = emptyList<String>()
         val solution = dfs(puzzle, setOf())
-        println(solution)
-        return solution.first()
+        return solution
     }
-
-    // a r o s e
-    // t a r o t
-    //
-    //
-    //
 
     private fun getContinuations(current: Crossword): List<Crossword> {
         val nextWords = dictionary.filter { word ->
             var i = 0
-            word.all { c ->
+            word !in current && word.all { c ->
                 val currentPrefix = current.map { w -> w[i] }.joinToString("")
                 val prefix = "$currentPrefix${word[i]}"
                 i++
-                trie.getChildWords(prefix).isNotEmpty()
+                trie.getChildWords(prefix).filter { w -> w !in current }.isNotEmpty()
             }
         }
         return nextWords.map { current.plus(it) }
     }
 
-    fun dfs(node: Crossword, visited: Set<Crossword>): Set<Crossword> {
-        if (node.size == 5) return setOf(node).also(::println)
+    fun dfs(node: Crossword, visited: Set<Crossword>): Crossword? {
+        if (node.size == 5) return node
         if (node !in visited) {
             val newVisited = visited.plusElement(node)
-            return getContinuations(node).flatMap { neighbor ->
-                dfs(neighbor, newVisited)
-            }.toSet()
+            getContinuations(node).shuffled().forEach { neighbor ->
+                val solution = dfs(neighbor, newVisited)
+                if (solution != null) return solution
+            }
+            return null
         } else {
-            return emptySet()
+            return null
         }
     }
 

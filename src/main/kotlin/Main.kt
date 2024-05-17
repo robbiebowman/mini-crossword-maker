@@ -10,5 +10,7 @@ fun main() {
     }.toSet()
 
     val puzzle = CrosswordMaker(strings).createCrossword()
-    println(puzzle)
+    puzzle?.forEach {
+        println(it.toCharArray().joinToString(" "))
+    }
 }
