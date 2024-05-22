@@ -30,21 +30,23 @@ class CrosswordMaker(private val dictionary: Set<String>) {
     }
 
     private fun getContinuations(current: Crossword, iteratingOnRow: Int): List<Crossword> {
-        val nextWords = dictionary.filter { word ->
-            var i = 0
-            !current.contains(word) && word.all { c ->
-                val currentPrefix = current.mapNotNull { w -> w[i] }.joinToString("")
-                val prefix = "$currentPrefix${word[i]}"
-                i++
-                trie.getChildWords(prefix).any { w ->
-                    !current.contains(w)
-                }
-            }
-        }
+        val nextWords = dictionary.filter{ w -> wordFits(current, w)}
         return nextWords.map {
             val new = current.copyOf()
             new[iteratingOnRow] = it.map { it }.toTypedArray();
             new
+        }
+    }
+
+    private fun wordFits(current: Crossword, word: String): Boolean {
+        var i = 0
+        return !current.contains(word) && word.all { c ->
+            val currentPrefix = current.mapNotNull { w -> w[i] }.joinToString("")
+            val prefix = "$currentPrefix${word[i]}"
+            i++
+            trie.getChildWords(prefix).any { w ->
+                !current.contains(w)
+            }
         }
     }
 
