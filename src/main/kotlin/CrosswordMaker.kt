@@ -30,24 +30,26 @@ class CrosswordMaker(private val dictionary: Set<String>) {
     }
 
     private fun getContinuations(current: Crossword, iteratingOnRow: Int): List<Crossword> {
-        val nextWords = dictionary.filter{ w -> wordFits(current, w)}
-        return nextWords.map {
+        return dictionary.mapNotNull { w ->
             val new = current.copyOf()
-            new[iteratingOnRow] = it.map { it }.toTypedArray();
-            new
+            new[iteratingOnRow] = w.map { it }.toTypedArray()
+            if (validContinuation(new)) new else null
         }
     }
 
-    private fun wordFits(current: Crossword, word: String): Boolean {
-        var i = 0
-        return !current.contains(word) && word.all { c ->
-            val currentPrefix = current.mapNotNull { w -> w[i] }.joinToString("")
-            val prefix = "$currentPrefix${word[i]}"
-            i++
-            trie.getChildWords(prefix).any { w ->
-                !current.contains(w)
-            }
-        }
+    val dictionaryLookUps = mutableMapOf<String, Boolean>()
+
+    private fun validContinuation(current: Crossword): Boolean {
+        val horizontalWords = current.map { it.joinToString("") { it?.toString() ?: "." } }
+        val (fullHorizontalWords, partialHorizontalWords) = horizontalWords.partition { "." !in it }
+        val verticalWords = (0..current.lastIndex).map { i -> current.map { it[i] }.joinToString("") { it?.toString() ?: "." } }
+        val (fullVerticalWords, partialVerticalWords) = verticalWords.partition { "." !in it }
+        val allFullWords = fullHorizontalWords.plus(fullVerticalWords).toSet()
+        val isUnique = allFullWords.size == fullVerticalWords.plus(fullHorizontalWords).size
+        val doesntResultInAnyNonWords = partialHorizontalWords.plus(partialVerticalWords).all { w ->
+            dictionaryLookUps[w] ?: dictionary.any { w.toRegex().matches(it) }.also { dictionaryLookUps[w] = it }
+        } && allFullWords.all { w -> dictionary.contains(w) }
+        return isUnique && doesntResultInAnyNonWords
     }
 
     fun dfs(node: Crossword, visited: Set<Crossword>, depth: Int): Crossword? {
@@ -55,7 +57,7 @@ class CrosswordMaker(private val dictionary: Set<String>) {
         if (node !in visited) {
             val newVisited = visited.plusElement(node)
             getContinuations(node, depth).shuffled().forEach { neighbor ->
-                val solution = dfs(neighbor, newVisited, depth+1)
+                val solution = dfs(neighbor, newVisited, depth + 1)
                 if (solution != null) return solution
             }
         }
