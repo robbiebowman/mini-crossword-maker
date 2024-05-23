@@ -1,22 +1,14 @@
 package org.example
 
-import Trie
-
 class CrosswordMaker(private val dictionary: Set<String>) {
-
-    val trie: Trie = Trie()
-
-    init {
-        dictionary.filter { it.length == 5 }.forEach(trie::insert)
-    }
 
     private fun initialisePuzzle(): Crossword {
         return arrayOf(
-            arrayOf(null, null, null, null, null),
-            arrayOf(null, null, null, null, null),
-            arrayOf(null, null, null, null, null),
-            arrayOf(null, null, null, null, null),
-            arrayOf(null, null, null, null, null),
+            arrayOf(' ', ' ', null, null, null),
+            arrayOf(' ', null, null, null, null),
+            arrayOf(null, null, 't', null, null),
+            arrayOf(null, null, null, null, ' '),
+            arrayOf(null, null, null, ' ', ' '),
         )
     }
 
@@ -31,24 +23,35 @@ class CrosswordMaker(private val dictionary: Set<String>) {
 
     private fun getContinuations(current: Crossword, iteratingOnRow: Int): List<Crossword> {
         return dictionary.mapNotNull { w ->
+            val template = current[iteratingOnRow].joinToString("") { it?.toString() ?: "." }.trim()
+            if (w.length != template.length) return@mapNotNull null
+            if (!template.toRegex().matches(w)) return@mapNotNull null
             val new = current.copyOf()
-            new[iteratingOnRow] = w.map { it }.toTypedArray()
+            var i = 0
+            new[iteratingOnRow] = current[iteratingOnRow].map { c ->
+                if (c == ' ') c else w[i++]
+            }.toTypedArray()
             if (validContinuation(new)) new else null
         }
     }
 
-    val dictionaryLookUps = mutableMapOf<String, Boolean>()
+    private fun existsInDictionary(regex: String) =
+        dictionaryLookUps[regex] ?: dictionary.any { regex.toRegex().matches(it) }
+            .also { dictionaryLookUps[regex] = it }
 
-    private fun validContinuation(current: Crossword): Boolean {
-        val horizontalWords = current.map { it.joinToString("") { it?.toString() ?: "." } }
+    private val dictionaryLookUps = mutableMapOf<String, Boolean>()
+
+    private fun validContinuation(puzzle: Crossword): Boolean {
+        val horizontalWords = puzzle.map { it.joinToString("") { it?.toString() ?: "." }.trim() }
         val (fullHorizontalWords, partialHorizontalWords) = horizontalWords.partition { "." !in it }
-        val verticalWords = (0..current.lastIndex).map { i -> current.map { it[i] }.joinToString("") { it?.toString() ?: "." } }
+        val verticalWords = (0..puzzle.lastIndex)
+            .map { i -> puzzle.map { word -> word[i] }.joinToString("") { it?.toString() ?: "." }.trim() }
         val (fullVerticalWords, partialVerticalWords) = verticalWords.partition { "." !in it }
         val allFullWords = fullHorizontalWords.plus(fullVerticalWords).toSet()
         val isUnique = allFullWords.size == fullVerticalWords.plus(fullHorizontalWords).size
         val doesntResultInAnyNonWords = partialHorizontalWords.plus(partialVerticalWords).all { w ->
-            dictionaryLookUps[w] ?: dictionary.any { w.toRegex().matches(it) }.also { dictionaryLookUps[w] = it }
-        } && allFullWords.all { w -> dictionary.contains(w) }
+            existsInDictionary(w)
+        } && allFullWords.all { w -> existsInDictionary(w) }
         return isUnique && doesntResultInAnyNonWords
     }
 
