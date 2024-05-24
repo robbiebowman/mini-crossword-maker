@@ -2,13 +2,15 @@ package org.example
 
 class CrosswordMaker(private val dictionary: Set<String>) {
 
+    private val dictionaryLookUps = mutableMapOf<String, Boolean>()
+
     private fun initialisePuzzle(): Crossword {
         return arrayOf(
             arrayOf(' ', ' ', null, null, null),
             arrayOf(' ', null, null, null, null),
-            arrayOf(null, null, 't', null, null),
-            arrayOf(null, null, null, null, ' '),
-            arrayOf(null, null, null, ' ', ' '),
+            arrayOf('a', 'h', ' ', 'm', 'e'),
+            arrayOf(null, null, null, null, null),
+            arrayOf(null, null, null, null, null),
         )
     }
 
@@ -17,19 +19,23 @@ class CrosswordMaker(private val dictionary: Set<String>) {
         return solution
     }
 
-    private fun Crossword.contains(str: String): Boolean {
-        return str in this.map { it.filterNotNull().joinToString("") }
-    }
-
     private fun getContinuations(current: Crossword, iteratingOnRow: Int): List<Crossword> {
         return dictionary.mapNotNull { w ->
-            val template = current[iteratingOnRow].joinToString("") { it?.toString() ?: "." }.trim()
+            val row = current[iteratingOnRow]
+                .joinToString("") { it?.toString() ?: "." }
+            val template = row.trim()
+                .split(' ').filterNot { it.isBlank() }
+                .firstOrNull { it.contains(".") }
+            if (template == null) {
+                return@mapNotNull current
+            }
+            val templateIndex = row.indexOf(template)
             if (w.length != template.length) return@mapNotNull null
             if (!template.toRegex().matches(w)) return@mapNotNull null
             val new = current.copyOf()
             var i = 0
-            new[iteratingOnRow] = current[iteratingOnRow].map { c ->
-                if (c == ' ') c else w[i++]
+            new[iteratingOnRow] = current[iteratingOnRow].mapIndexed { idx, c ->
+                if (c == ' ' || idx < templateIndex) c else w[i++]
             }.toTypedArray()
             if (validContinuation(new)) new else null
         }
@@ -39,13 +45,14 @@ class CrosswordMaker(private val dictionary: Set<String>) {
         dictionaryLookUps[regex] ?: dictionary.any { regex.toRegex().matches(it) }
             .also { dictionaryLookUps[regex] = it }
 
-    private val dictionaryLookUps = mutableMapOf<String, Boolean>()
-
     private fun validContinuation(puzzle: Crossword): Boolean {
-        val horizontalWords = puzzle.map { it.joinToString("") { it?.toString() ?: "." }.trim() }
+        val horizontalWords =
+            puzzle.flatMap { it.joinToString("") { it?.toString() ?: "." }.trim().split(" +".toRegex()) }
         val (fullHorizontalWords, partialHorizontalWords) = horizontalWords.partition { "." !in it }
         val verticalWords = (0..puzzle.lastIndex)
-            .map { i -> puzzle.map { word -> word[i] }.joinToString("") { it?.toString() ?: "." }.trim() }
+            .flatMap { i ->
+                puzzle.map { word -> word[i] }.joinToString("") { it?.toString() ?: "." }.trim().split(" +".toRegex())
+            }
         val (fullVerticalWords, partialVerticalWords) = verticalWords.partition { "." !in it }
         val allFullWords = fullHorizontalWords.plus(fullVerticalWords).toSet()
         val isUnique = allFullWords.size == fullVerticalWords.plus(fullHorizontalWords).size
@@ -59,9 +66,16 @@ class CrosswordMaker(private val dictionary: Set<String>) {
         if (node.all { it.all { it != null } }) return node
         if (node !in visited) {
             val newVisited = visited.plusElement(node)
-            getContinuations(node, depth).shuffled().forEach { neighbor ->
-                val solution = dfs(neighbor, newVisited, depth + 1)
+            if (node[depth].all { it != null }) {
+                // If the row we're moving onto is already full, move on
+                val solution = dfs(node, visited, depth + 1)
                 if (solution != null) return solution
+            } else {
+                getContinuations(node, depth).shuffled().forEach { neighbor ->
+                    val newDepth = if (neighbor[depth].any { it == null }) depth else depth + 1
+                    val solution = dfs(neighbor, newVisited, newDepth)
+                    if (solution != null) return solution
+                }
             }
         }
         return null
