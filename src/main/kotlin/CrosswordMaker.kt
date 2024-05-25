@@ -1,48 +1,108 @@
 package org.example
 
-import Trie
+import java.nio.file.Files
+import java.nio.file.Paths
 
-class CrosswordMaker(private val dictionary: Set<String>) {
+class CrosswordMaker {
 
-    val trie: Trie = Trie()
+    private val dictionary: Set<String>
 
     init {
-        dictionary.filter { it.length == 5 }.forEach(trie::insert)
+        dictionary = getWordsFromFile("/5-letter-words.txt")
+            .plus(getWordsFromFile("/4-letter-words.txt"))
+            .plus(getWordsFromFile("/3-letter-words.txt"))
+            .plus(getWordsFromFile("/2-letter-words.txt"))
+            .plus(('a'..'z').map{it.toString()})
     }
 
-    fun createCrossword(initialPuzzle: Crossword? = null): Crossword? {
-        val puzzle = emptyList<String>()
-        val solution = dfs(puzzle, setOf())
-        return solution
+    private val dictionaryLookUps = mutableMapOf<String, Boolean>()
+
+    private fun initialisePuzzle(): Crossword {
+        return arrayOf(
+            arrayOf(null, null, null, null, null),
+            arrayOf(null, ' ', null, null, null),
+            arrayOf(null, ' ', null, null, null),
+            arrayOf(null, ' ', null, null, null),
+            arrayOf(null, null, null, null, null),
+        )
     }
 
-    private fun getContinuations(current: Crossword): List<Crossword> {
-        val nextWords = dictionary.filter { word ->
+    fun createCrossword(initialPuzzle: Crossword = initialisePuzzle()): Crossword? {
+        return dfs(initialPuzzle, setOf(), 0)
+    }
+
+    private fun getContinuations(current: Crossword, iteratingOnRow: Int): List<Crossword> {
+        return dictionary.mapNotNull { w ->
+            val row = current[iteratingOnRow]
+                .joinToString("") { it?.toString() ?: "." }
+            val template = row.trim()
+                .split(' ').filterNot { it.isBlank() }
+                .firstOrNull { it.contains(".") }
+            if (template == null) return@mapNotNull current
+            if (w.length != template.length) return@mapNotNull null
+            if (!template.toRegex().matches(w)) return@mapNotNull null
+            val templateIndex = row.indexOf(template)
+            val new = current.copyOf()
             var i = 0
-            word !in current && word.all { c ->
-                val currentPrefix = current.map { w -> w[i] }.joinToString("")
-                val prefix = "$currentPrefix${word[i]}"
-                i++
-                trie.getChildWords(prefix).filter { w -> w !in current }.isNotEmpty()
-            }
+            new[iteratingOnRow] = current[iteratingOnRow].mapIndexed { idx, c ->
+                // Don't replace the row's chars unless within the template bounds
+                if (c == ' ' || idx < templateIndex || idx >= templateIndex + template.length)
+                    c
+                else w[i++]
+            }.toTypedArray()
+            if (validContinuation(new)) new else null
         }
-        return nextWords.map { current.plus(it) }
     }
 
-    fun dfs(node: Crossword, visited: Set<Crossword>): Crossword? {
-        if (node.size == 5) return node
+    private fun existsInDictionary(regex: String) =
+        dictionaryLookUps[regex] ?: dictionary.any { regex.toRegex().matches(it) }
+            .also { dictionaryLookUps[regex] = it }
+
+    private fun validContinuation(puzzle: Crossword): Boolean {
+        val horizontalWords =
+            puzzle.flatMap { it.joinToString("") { it?.toString() ?: "." }.trim().split(" +".toRegex()) }
+        val (fullHorizontalWords, partialHorizontalWords) = horizontalWords.partition { "." !in it }
+        val verticalWords = (0..puzzle.lastIndex)
+            .flatMap { i ->
+                puzzle.map { word -> word[i] }.joinToString("") { it?.toString() ?: "." }.trim().split(" +".toRegex())
+            }
+        val (fullVerticalWords, partialVerticalWords) = verticalWords.partition { "." !in it }
+        val allFullWords = fullHorizontalWords.plus(fullVerticalWords).toSet()
+        val isUnique = allFullWords.size == fullVerticalWords.plus(fullHorizontalWords).size
+        val doesntResultInAnyNonWords = partialHorizontalWords.plus(partialVerticalWords).all { w ->
+            w.length == 1 || existsInDictionary(w)
+        } && allFullWords.all { w -> w.length == 1 || existsInDictionary(w) }
+        return isUnique && doesntResultInAnyNonWords
+    }
+
+    private fun dfs(node: Crossword, visited: Set<Crossword>, depth: Int): Crossword? {
+        if (node.all { it.all { it != null } }) return node
         if (node !in visited) {
             val newVisited = visited.plusElement(node)
-            getContinuations(node).shuffled().forEach { neighbor ->
-                val solution = dfs(neighbor, newVisited)
+            if (node[depth].all { it != null }) {
+                // If the row we're moving onto is already full, move on
+                val solution = dfs(node, visited, depth + 1)
                 if (solution != null) return solution
+            } else {
+                getContinuations(node, depth).shuffled().forEach { neighbor ->
+                    val newDepth = if (neighbor[depth].any { it == null }) depth else depth + 1
+                    val solution = dfs(neighbor, newVisited, newDepth)
+                    if (solution != null) return solution
+                }
             }
-            return null
-        } else {
-            return null
         }
+        return null
+    }
+
+    private fun getWordsFromFile(path: String): Set<String> {
+        val uri = CrosswordMaker::class.java.getResource(path)?.toURI()
+            ?: throw Exception("Couldn't get resource.")
+        val strings = Files.readAllLines(Paths.get(uri)).filter { w ->
+            w.length <= 5 && w.all { it in 'a'..'z' }
+        }.toSet()
+        return strings
     }
 
 }
 
-typealias Crossword = List<String>
+typealias Crossword = Array<Array<Char?>>

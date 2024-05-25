@@ -3518,7 +3518,6 @@ xenon
 hullo
 pique
 roger
-negro
 hadst
 gecko
 beget
@@ -4731,7 +4730,6 @@ teary
 masse
 largo
 bazar
-pssst
 sylph
 lulab
 toque
@@ -5070,6 +5068,7 @@ ousel
 umiak
 cuppy
 hames
+shite
 shits
 azine
 glads
