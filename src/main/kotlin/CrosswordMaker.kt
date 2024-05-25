@@ -1,22 +1,34 @@
 package org.example
 
-class CrosswordMaker(private val dictionary: Set<String>) {
+import java.nio.file.Files
+import java.nio.file.Paths
+
+class CrosswordMaker {
+
+    private val dictionary: Set<String>
+
+    init {
+        dictionary = getWordsFromFile("/5-letter-words.txt")
+            .plus(getWordsFromFile("/4-letter-words.txt"))
+            .plus(getWordsFromFile("/3-letter-words.txt"))
+            .plus(getWordsFromFile("/2-letter-words.txt"))
+            .plus(('a'..'z').map{it.toString()})
+    }
 
     private val dictionaryLookUps = mutableMapOf<String, Boolean>()
 
     private fun initialisePuzzle(): Crossword {
         return arrayOf(
-            arrayOf(' ', null, null, null, null),
             arrayOf(null, null, null, null, null),
-            arrayOf(null, null, ' ', null, null),
+            arrayOf(null, ' ', null, null, null),
+            arrayOf(null, ' ', null, null, null),
+            arrayOf(null, ' ', null, null, null),
             arrayOf(null, null, null, null, null),
-            arrayOf(null, null, null, null, ' '),
         )
     }
 
     fun createCrossword(initialPuzzle: Crossword = initialisePuzzle()): Crossword? {
-        val solution = dfs(initialPuzzle, setOf(), 0)
-        return solution
+        return dfs(initialPuzzle, setOf(), 0)
     }
 
     private fun getContinuations(current: Crossword, iteratingOnRow: Int): List<Crossword> {
@@ -26,12 +38,10 @@ class CrosswordMaker(private val dictionary: Set<String>) {
             val template = row.trim()
                 .split(' ').filterNot { it.isBlank() }
                 .firstOrNull { it.contains(".") }
-            if (template == null) {
-                return@mapNotNull current
-            }
-            val templateIndex = row.indexOf(template)
+            if (template == null) return@mapNotNull current
             if (w.length != template.length) return@mapNotNull null
             if (!template.toRegex().matches(w)) return@mapNotNull null
+            val templateIndex = row.indexOf(template)
             val new = current.copyOf()
             var i = 0
             new[iteratingOnRow] = current[iteratingOnRow].mapIndexed { idx, c ->
@@ -60,12 +70,12 @@ class CrosswordMaker(private val dictionary: Set<String>) {
         val allFullWords = fullHorizontalWords.plus(fullVerticalWords).toSet()
         val isUnique = allFullWords.size == fullVerticalWords.plus(fullHorizontalWords).size
         val doesntResultInAnyNonWords = partialHorizontalWords.plus(partialVerticalWords).all { w ->
-            existsInDictionary(w)
-        } && allFullWords.all { w -> existsInDictionary(w) }
+            w.length == 1 || existsInDictionary(w)
+        } && allFullWords.all { w -> w.length == 1 || existsInDictionary(w) }
         return isUnique && doesntResultInAnyNonWords
     }
 
-    fun dfs(node: Crossword, visited: Set<Crossword>, depth: Int): Crossword? {
+    private fun dfs(node: Crossword, visited: Set<Crossword>, depth: Int): Crossword? {
         if (node.all { it.all { it != null } }) return node
         if (node !in visited) {
             val newVisited = visited.plusElement(node)
@@ -82,6 +92,15 @@ class CrosswordMaker(private val dictionary: Set<String>) {
             }
         }
         return null
+    }
+
+    private fun getWordsFromFile(path: String): Set<String> {
+        val uri = CrosswordMaker::class.java.getResource(path)?.toURI()
+            ?: throw Exception("Couldn't get resource.")
+        val strings = Files.readAllLines(Paths.get(uri)).filter { w ->
+            w.length <= 5 && w.all { it in 'a'..'z' }
+        }.toSet()
+        return strings
     }
 
 }
