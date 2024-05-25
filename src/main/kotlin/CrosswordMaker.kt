@@ -12,7 +12,7 @@ class CrosswordMaker {
             .plus(getWordsFromFile("/4-letter-words.txt"))
             .plus(getWordsFromFile("/3-letter-words.txt"))
             .plus(getWordsFromFile("/2-letter-words.txt"))
-            .plus(('a'..'z').map{it.toString()})
+            .plus(('a'..'z').map { it.toString() })
     }
 
     private val dictionaryLookUps = mutableMapOf<String, Boolean>()

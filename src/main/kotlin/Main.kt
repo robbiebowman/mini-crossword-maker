@@ -5,7 +5,12 @@ import java.nio.file.Paths
 
 fun main() {
     val puzzle = CrosswordMaker().createCrossword()
-    puzzle?.forEach {
-        println(it.joinToString(" "))
+    if(puzzle != null) {
+        puzzle.forEach {
+            println(it.joinToString(" "))
+        }
+        val (across, down) = WordIsolator.getWords(puzzle)
+        println(across)
+        println(down)
     }
 }
