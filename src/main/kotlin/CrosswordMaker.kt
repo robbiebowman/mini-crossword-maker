@@ -6,11 +6,11 @@ class CrosswordMaker(private val dictionary: Set<String>) {
 
     private fun initialisePuzzle(): Crossword {
         return arrayOf(
-            arrayOf(' ', ' ', null, null, null),
             arrayOf(' ', null, null, null, null),
-            arrayOf('a', 'h', ' ', 'm', 'e'),
             arrayOf(null, null, null, null, null),
+            arrayOf(null, null, ' ', null, null),
             arrayOf(null, null, null, null, null),
+            arrayOf(null, null, null, null, ' '),
         )
     }
 
@@ -35,7 +35,10 @@ class CrosswordMaker(private val dictionary: Set<String>) {
             val new = current.copyOf()
             var i = 0
             new[iteratingOnRow] = current[iteratingOnRow].mapIndexed { idx, c ->
-                if (c == ' ' || idx < templateIndex) c else w[i++]
+                // Don't replace the row's chars unless within the template bounds
+                if (c == ' ' || idx < templateIndex || idx >= templateIndex + template.length)
+                    c
+                else w[i++]
             }.toTypedArray()
             if (validContinuation(new)) new else null
         }
