@@ -1,4 +1,4 @@
-package org.example
+package com.robbiebowman
 
 object WordIsolator {
 
@@ -17,11 +17,5 @@ object WordIsolator {
                 val coordinate = rowString.indexOf(it)
                 WordWithCoordinate(it, x ?: coordinate, y ?: coordinate)
             }
-    }
-
-    data class WordWithCoordinate(val word: String, val x: Int, val y: Int) {
-        override fun toString(): String {
-            return "$word - $x $y"
-        }
     }
 }

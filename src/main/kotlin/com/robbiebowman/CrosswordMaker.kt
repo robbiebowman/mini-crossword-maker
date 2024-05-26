@@ -1,4 +1,4 @@
-package org.example
+package com.robbiebowman
 
 import java.nio.file.Files
 import java.nio.file.Paths
@@ -116,5 +116,3 @@ class CrosswordMaker {
     }
 
 }
-
-typealias Crossword = Array<Array<Char?>>

@@ -1,7 +1,7 @@
 package org.example
 
-import java.nio.file.Files
-import java.nio.file.Paths
+import com.robbiebowman.CrosswordMaker
+import com.robbiebowman.WordIsolator
 
 fun main() {
     val puzzle = CrosswordMaker().createCrossword()
