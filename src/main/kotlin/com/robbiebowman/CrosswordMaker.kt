@@ -7,6 +7,7 @@ import java.nio.file.*
 class CrosswordMaker {
 
     private val dictionary: Set<String>
+    private var fs: FileSystem? = null
 
     init {
         dictionary = getWordsFromFile("/5-letter-words.txt")
@@ -118,11 +119,12 @@ class CrosswordMaker {
         val uri = CrosswordMaker::class.java.getResource(path)?.toURI()
             ?: throw Exception("Couldn't get resource.")
         if (uri.scheme == "jar") {
-            val env: Map<String, String> = HashMap()
             val array = uri.toString().split("!".toRegex()).dropLastWhile { it.isEmpty() }.toTypedArray()
-            val fs: FileSystem = FileSystems.newFileSystem(URI.create(array[0]), env)
-            val jarPath: Path = fs.getPath(array[1])
-            return jarPath
+            if (fs == null) {
+                val env: Map<String, String> = HashMap()
+                fs = FileSystems.newFileSystem(URI.create(array[0]), env)
+            }
+            return fs!!.getPath(array[1])
         } else {
             return Paths.get(uri)
         }
