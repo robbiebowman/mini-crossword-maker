@@ -10,8 +10,8 @@ class CrosswordMaker {
     init {
         dictionary = getWordsFromFile("/5-letter-words.txt")
             .plus(getWordsFromFile("/4-letter-words.txt"))
-            .plus(getWordsFromFile("/3-letter-words.txt"))
-            .plus(getWordsFromFile("/2-letter-words.txt"))
+            .plus(getRankedWordsFromFile("/3-letter-words-ranked.txt", 3))
+            .plus(getRankedWordsFromFile("/2-letter-words-ranked.txt", 3))
             .plus(('a'..'z').map { it.toString() })
     }
 
@@ -21,7 +21,7 @@ class CrosswordMaker {
         return arrayOf(
             arrayOf(null, null, null, null, null),
             arrayOf(null, ' ', null, null, null),
-            arrayOf(null, ' ', null, null, null),
+            arrayOf(null, ' ', ' ', null, null),
             arrayOf(null, ' ', null, null, null),
             arrayOf(null, null, null, null, null),
         )
@@ -98,6 +98,18 @@ class CrosswordMaker {
         val uri = CrosswordMaker::class.java.getResource(path)?.toURI()
             ?: throw Exception("Couldn't get resource.")
         val strings = Files.readAllLines(Paths.get(uri)).filter { w ->
+            w.length <= 5 && w.all { it in 'a'..'z' }
+        }.toSet()
+        return strings
+    }
+
+    private fun getRankedWordsFromFile(path: String, minRank: Int): Set<String> {
+        val uri = CrosswordMaker::class.java.getResource(path)?.toURI()
+            ?: throw Exception("Couldn't get resource.")
+        val strings = Files.readAllLines(Paths.get(uri)).mapNotNull {
+            val (word, rank) = it.split(" - ")
+            if (rank.toInt() < minRank) null else word
+        }.filter { w ->
             w.length <= 5 && w.all { it in 'a'..'z' }
         }.toSet()
         return strings
