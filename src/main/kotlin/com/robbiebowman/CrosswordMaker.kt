@@ -98,7 +98,7 @@ class CrosswordMaker {
 
     private fun getWordsFromFile(path: String): Set<String> {
         val resource = this::class.java.classLoader.getResource(path)
-        val strings =  resource!!.readText().split("\\r\\n".toRegex()).filter { w ->
+        val strings =  resource!!.readText().split("\\r?\\n".toRegex()).filter { w ->
             w.length <= 5 && w.all { it in 'a'..'z' }
         }.toSet()
         return strings
@@ -106,7 +106,7 @@ class CrosswordMaker {
 
     private fun getRankedWordsFromFile(path: String, minRank: Int): Set<String> {
         val resource = this::class.java.classLoader.getResource(path)
-        val strings =  resource!!.readText().split("\\r\\n".toRegex()).mapNotNull {
+        val strings =  resource!!.readText().split("\\r?\\n".toRegex()).mapNotNull {
             val (word, rank) = it.split(" - ")
             if (rank.toInt() < minRank) null else word
         }.filter { w ->
