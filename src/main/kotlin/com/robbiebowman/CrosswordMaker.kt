@@ -1,7 +1,8 @@
 package com.robbiebowman
 
-import java.nio.file.Files
-import java.nio.file.Paths
+import java.net.URI
+import java.nio.file.*
+
 
 class CrosswordMaker {
 
@@ -95,24 +96,36 @@ class CrosswordMaker {
     }
 
     private fun getWordsFromFile(path: String): Set<String> {
-        val uri = CrosswordMaker::class.java.getResource(path)?.toURI()
-            ?: throw Exception("Couldn't get resource.")
-        val strings = Files.readAllLines(Paths.get(uri)).filter { w ->
+        val jarPath = getJarSafePath(path)
+        val strings = Files.readAllLines(jarPath).filter { w ->
             w.length <= 5 && w.all { it in 'a'..'z' }
         }.toSet()
         return strings
     }
 
     private fun getRankedWordsFromFile(path: String, minRank: Int): Set<String> {
-        val uri = CrosswordMaker::class.java.getResource(path)?.toURI()
-            ?: throw Exception("Couldn't get resource.")
-        val strings = Files.readAllLines(Paths.get(uri)).mapNotNull {
+        val jarPath = getJarSafePath(path)
+        val strings = Files.readAllLines(jarPath).mapNotNull {
             val (word, rank) = it.split(" - ")
             if (rank.toInt() < minRank) null else word
         }.filter { w ->
             w.length <= 5 && w.all { it in 'a'..'z' }
         }.toSet()
         return strings
+    }
+
+    private fun getJarSafePath(path: String): Path {
+        val uri = CrosswordMaker::class.java.getResource(path)?.toURI()
+            ?: throw Exception("Couldn't get resource.")
+        if (uri.scheme == "jar") {
+            val env: Map<String, String> = HashMap()
+            val array = uri.toString().split("!".toRegex()).dropLastWhile { it.isEmpty() }.toTypedArray()
+            val fs: FileSystem = FileSystems.newFileSystem(URI.create(array[0]), env)
+            val jarPath: Path = fs.getPath(array[1])
+            return jarPath
+        } else {
+            return Paths.get(uri)
+        }
     }
 
 }
