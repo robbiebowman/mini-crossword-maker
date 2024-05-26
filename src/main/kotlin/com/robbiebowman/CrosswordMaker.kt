@@ -10,10 +10,10 @@ class CrosswordMaker {
     private var fs: FileSystem? = null
 
     init {
-        dictionary = getWordsFromFile("/5-letter-words.txt")
-            .plus(getWordsFromFile("/4-letter-words.txt"))
-            .plus(getRankedWordsFromFile("/3-letter-words-ranked.txt", 3))
-            .plus(getRankedWordsFromFile("/2-letter-words-ranked.txt", 3))
+        dictionary = getWordsFromFile("5-letter-words.txt")
+            .plus(getWordsFromFile("4-letter-words.txt"))
+            .plus(getRankedWordsFromFile("3-letter-words-ranked.txt", 3))
+            .plus(getRankedWordsFromFile("2-letter-words-ranked.txt", 3))
             .plus(('a'..'z').map { it.toString() })
     }
 
@@ -97,37 +97,22 @@ class CrosswordMaker {
     }
 
     private fun getWordsFromFile(path: String): Set<String> {
-        val jarPath = getJarSafePath(path)
-        val strings = Files.readAllLines(jarPath).filter { w ->
+        val resource = this::class.java.classLoader.getResource(path)
+        val strings =  resource!!.readText().split("\\r\\n".toRegex()).filter { w ->
             w.length <= 5 && w.all { it in 'a'..'z' }
         }.toSet()
         return strings
     }
 
     private fun getRankedWordsFromFile(path: String, minRank: Int): Set<String> {
-        val jarPath = getJarSafePath(path)
-        val strings = Files.readAllLines(jarPath).mapNotNull {
+        val resource = this::class.java.classLoader.getResource(path)
+        val strings =  resource!!.readText().split("\\r\\n".toRegex()).mapNotNull {
             val (word, rank) = it.split(" - ")
             if (rank.toInt() < minRank) null else word
         }.filter { w ->
             w.length <= 5 && w.all { it in 'a'..'z' }
         }.toSet()
         return strings
-    }
-
-    private fun getJarSafePath(path: String): Path {
-        val uri = CrosswordMaker::class.java.getResource(path)?.toURI()
-            ?: throw Exception("Couldn't get resource.")
-        if (uri.scheme == "jar") {
-            val array = uri.toString().split("!".toRegex()).dropLastWhile { it.isEmpty() }.toTypedArray()
-            if (fs == null) {
-                val env: Map<String, String> = HashMap()
-                fs = FileSystems.newFileSystem(URI.create(array[0]), env)
-            }
-            return fs!!.getPath(array[1])
-        } else {
-            return Paths.get(uri)
-        }
     }
 
 }
