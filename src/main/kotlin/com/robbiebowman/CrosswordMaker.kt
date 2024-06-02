@@ -10,11 +10,7 @@ class CrosswordMaker(private val rng: Random = Random(Instant.now().epochSecond)
     private val shapes: Set<Array<Array<Char?>>>
 
     init {
-        dictionary = getWordsFromFile("5-letter-words.txt")
-            .plus(getWordsFromFile("4-letter-words.txt"))
-            .plus(getRankedWordsFromFile("3-letter-words-ranked.txt", 3))
-            .plus(getRankedWordsFromFile("2-letter-words-ranked.txt", 3))
-            .plus(('a'..'z').map { it.toString() })
+        dictionary = getBNCFWordsFromFile("1_1_all_fullalpha.txt")
 
         shapes = getShapesFromFile("layouts.txt")
     }
@@ -100,6 +96,22 @@ class CrosswordMaker(private val rng: Random = Random(Instant.now().epochSecond)
         }.flatten().toSet()
         val shapes = strings.map { it.map { it.toTypedArray() }.toTypedArray() }.toSet()
         return shapes
+    }
+
+    private fun getBNCFWordsFromFile(path: String): Set<String> {
+        val resource = this::class.java.classLoader.getResource(path)
+        val lines = resource!!.readText().split("\\n".toRegex())
+        val bncRegex = Regex("^\\t([^\\t]+)+\\t[^\\t]+\\t([^\\t]+)+\\t\\d+\\t\\d+\\t([\\d.]+)")
+        val strings = lines.mapNotNull {
+            val captured = bncRegex.replace(it, "$1 $2 $3").split(" ")
+            if (captured.size == 1) {
+                return@mapNotNull null
+            }
+            val (word, derived, freq) = captured
+            val actualWord = if (word == "@") derived else word
+            if (freq.toDouble() > 0.1) actualWord else null
+        }.toSet()
+        return strings
     }
 
     private fun getWordsFromFile(path: String): Set<String> {
