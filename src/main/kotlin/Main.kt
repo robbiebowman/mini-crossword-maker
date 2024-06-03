@@ -2,26 +2,22 @@ package org.example
 
 import com.robbiebowman.CrosswordMaker
 import com.robbiebowman.WordIsolator
+import java.text.SimpleDateFormat
+import java.util.*
 import kotlin.random.Random
 
 fun main() {
     val crosswordMaker = CrosswordMaker()
-    var puzzle = crosswordMaker.createCrossword()
-    if(puzzle != null) {
+    val sdf = SimpleDateFormat("hh:mm:ss")
+    println("Time is ${sdf.format(Date())}")
+    repeat(10) {
+        val puzzle = crosswordMaker.createCrossword()!!
         puzzle.forEach {
             println(it.joinToString(" "))
         }
         val (across, down) = WordIsolator.getWords(puzzle)
         println(across)
         println(down)
-    }
-    puzzle = crosswordMaker.createCrossword()
-    if(puzzle != null) {
-        puzzle.forEach {
-            println(it.joinToString(" "))
-        }
-        val (across, down) = WordIsolator.getWords(puzzle)
-        println(across)
-        println(down)
+        println("Time is ${sdf.format(Date())}")
     }
 }

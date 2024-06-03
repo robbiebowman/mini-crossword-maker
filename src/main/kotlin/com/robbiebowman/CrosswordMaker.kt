@@ -1,20 +1,18 @@
 package com.robbiebowman
 
+import org.example.com.robbiebowman.generateWildcardDictionary
 import java.time.Instant
 import kotlin.random.Random
 
 
 class CrosswordMaker(private val rng: Random = Random(Instant.now().epochSecond)) {
 
-    private val dictionary: Set<String>
+    private val dictionary: Map<String, Set<String>>
     private val shapes: Set<Array<Array<Char?>>>
 
     init {
-        dictionary = getWordsFromFile("5-letter-words.txt")
-            .plus(getWordsFromFile("4-letter-words.txt"))
-            .plus(getRankedWordsFromFile("3-letter-words-ranked.txt", 3))
-            .plus(getRankedWordsFromFile("2-letter-words-ranked.txt", 3))
-            .plus(('a'..'z').map { it.toString() })
+        val words = getBNCFWordsFromFile("1_1_all_fullalpha.txt")
+        dictionary = generateWildcardDictionary(words.toSet())
 
         shapes = getShapesFromFile("layouts.txt")
     }
@@ -30,15 +28,14 @@ class CrosswordMaker(private val rng: Random = Random(Instant.now().epochSecond)
     }
 
     private fun getContinuations(current: Crossword, iteratingOnRow: Int): List<Crossword> {
-        return dictionary.mapNotNull { w ->
-            val row = current[iteratingOnRow]
-                .joinToString("") { it?.toString() ?: "." }
-            val template = row.trim()
-                .split(' ').filterNot { it.isBlank() }
-                .firstOrNull { it.contains(".") }
-            if (template == null) return@mapNotNull current
-            if (w.length != template.length) return@mapNotNull null
-            if (!template.toRegex().matches(w)) return@mapNotNull null
+        val row = current[iteratingOnRow]
+            .joinToString("") { it?.toString() ?: "." }
+        val template = row.trim()
+            .split(' ').filterNot { it.isBlank() }
+            .firstOrNull { it.contains(".") }
+        if (template == null) return listOf(current)
+        val words = dictionary.getValue(template)
+        return words.mapNotNull { w ->
             val templateIndex = row.indexOf(template)
             val new = current.copyOf()
             var i = 0
@@ -52,9 +49,7 @@ class CrosswordMaker(private val rng: Random = Random(Instant.now().epochSecond)
         }
     }
 
-    private fun existsInDictionary(regex: String) =
-        dictionaryLookUps[regex] ?: dictionary.any { regex.toRegex().matches(it) }
-            .also { dictionaryLookUps[regex] = it }
+    private fun existsInDictionary(regex: String) = dictionary.getValue(regex).isNotEmpty()
 
     private fun validContinuation(puzzle: Crossword): Boolean {
         val horizontalWords =
@@ -74,7 +69,9 @@ class CrosswordMaker(private val rng: Random = Random(Instant.now().epochSecond)
     }
 
     private fun dfs(node: Crossword, visited: Set<Crossword>, depth: Int): Crossword? {
-        if (node.all { it.all { it != null } }) return node
+        if (node.all { it.all { it != null } }){
+            return node
+        }
         if (node !in visited) {
             val newVisited = visited.plusElement(node)
             if (node[depth].all { it != null }) {
@@ -100,6 +97,27 @@ class CrosswordMaker(private val rng: Random = Random(Instant.now().epochSecond)
         }.flatten().toSet()
         val shapes = strings.map { it.map { it.toTypedArray() }.toTypedArray() }.toSet()
         return shapes
+    }
+
+    private fun getBNCFWordsFromFile(path: String): Set<String> {
+        val resource = this::class.java.classLoader.getResource(path)
+        val lines = resource!!.readText().split("\\n".toRegex())
+        val bncRegex = Regex("^\\t([^\\t]+)+\\t[^\\t]+\\t([^\\t]+)+\\t\\d+\\t\\d+\\t([\\d.]+)")
+        val strings = lines.mapNotNull {
+            val captured = bncRegex.replace(it, "$1 $2 $3").split(" ")
+            if (captured.size == 1) {
+                return@mapNotNull null
+            }
+            val (word, derived, freq) = captured
+            val actualWord = if (word == "@") derived else word
+            if (freq.toDouble() > 0.75) actualWord else null
+        }.map { it.lowercase().filter { it != '-' } }
+            .filter { it.all { it  in 'a'..'z'} }
+            .filter { it.length <= 5 }
+            .toSet()
+            .minus("@")
+            .minus(":")
+        return strings
     }
 
     private fun getWordsFromFile(path: String): Set<String> {
