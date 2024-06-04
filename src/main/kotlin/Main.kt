@@ -10,7 +10,7 @@ fun main() {
     val crosswordMaker = CrosswordMaker()
     val sdf = SimpleDateFormat("hh:mm:ss")
     println("Time is ${sdf.format(Date())}")
-    repeat(1) {
+    repeat(10) {
         val puzzle = crosswordMaker.createCrossword()!!
         puzzle.forEach {
             println(it.joinToString(" "))

@@ -10,7 +10,7 @@ object WordIsolator {
         return across to down
     }
 
-    private fun getWordsInRow(row: Array<Char?>, x: Int?, y: Int?): List<WordWithCoordinate> {
+    private fun getWordsInRow(row: Array<Char>, x: Int?, y: Int?): List<WordWithCoordinate> {
         val rowString = row.joinToString("")
         return rowString.split(' ').map { it.trim() }.filter { it.isNotBlank() && it.length > 1 }
             .map {

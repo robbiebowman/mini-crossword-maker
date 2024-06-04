@@ -29,24 +29,15 @@ class CrosswordMaker(private val rng: Random = Random(Instant.now().epochSecond)
 
     private fun getContinuations(current: Crossword, iteratingOnRow: Int): List<Crossword> {
         val row = current[iteratingOnRow]
-        val template = row.trim()
-            .split(' ').filterNot { it.isBlank() }
-            .firstOrNull { it.contains(".") }
-        if (template == null) return listOf(current)
-        val words = dictionary.getValue(template)
-        val (startIndex, endIndex) = getWordBoundaries(row, row.indexOf('.'), setOf('.'))
+        if (!row.contains('.')) return listOf(current)
+        val (startIndex, endIndex) = getWordBoundaries(row, row.indexOf('.'), setOf(' '))
         val valid = getContinuationIntersections(current, iteratingOnRow, startIndex, endIndex)
-        return words.mapNotNull { w ->
-            val templateIndex = row.indexOf(template)
+        return valid.map { w ->
             val new = current.copyOf()
-            var i = 0
             new[iteratingOnRow] = current[iteratingOnRow].mapIndexed { idx, c ->
-                // Don't replace the row's chars unless within the template bounds
-                if (c == ' ' || idx < templateIndex || idx >= templateIndex + template.length)
-                    c
-                else w[i++]
+                if (idx < startIndex || idx > endIndex) c else w[idx - startIndex]
             }.toTypedArray()
-            if (validContinuation(new)) new else null
+            new
         }
     }
 
@@ -84,54 +75,65 @@ class CrosswordMaker(private val rng: Random = Random(Instant.now().epochSecond)
             puzzle[rowIndex]
                 .sliceArray(startIndex..endIndex)
                 .joinToString("")
-        val verticalTemplates = (startIndex..endIndex).map { i ->
-            val (verticalStart, verticalEnd) = getWordBoundaries(puzzle.map { it[i] }.toTypedArray(), rowIndex, setOf(' '))
-            verticalStart..verticalEnd
-            horizontalWord
-            puzzle[i].sliceArray(verticalStart..verticalEnd).joinToString("")
+        val templateAnswers = dictionary.getValue(template)
+        val verticalTemplates = (startIndex..endIndex).map { horizontalIndex ->
+            val (verticalStart, verticalEnd) = getWordBoundaries(
+                puzzle.map { it[horizontalIndex] }.toTypedArray(),
+                rowIndex,
+                setOf(' ')
+            )
+            val verticalTemplate = (verticalStart..verticalEnd).map { puzzle[it][horizontalIndex] }.joinToString("")
+            val horizontalIntersection = rowIndex - verticalStart
+            verticalTemplate to horizontalIntersection
         }
+        val validAnswers = getAllowedHorizontalWords(templateAnswers, verticalTemplates)
 
+        return validAnswers
+    }
 
-
-        return verticalTemplates.map { dictionary.getValue(it) }
-            .reduce { acc, strings -> acc.intersect(strings) }
+    private fun getAllowedHorizontalWords(
+        candidates: Set<String>,
+        verticalTemplates: List<Pair<String, Int>>
+    ): Set<String> {
+        return candidates.filter { word ->
+            var i = 0
+            verticalTemplates.all { (template, horizontalIntersection) ->
+                val newTemplate = template.replaceRange(
+                    horizontalIntersection,
+                    horizontalIntersection + 1,
+                    word[i++].toString()
+                )
+                dictionary.getValue(newTemplate).isNotEmpty()
+            }
+        }.toSet()
     }
 
     private fun <T> getWordBoundaries(array: Array<T>, startingIndex: Int, boundaryElements: Set<T>): Pair<Int, Int> {
         if (boundaryElements.contains(array[startingIndex])) throw Exception("Starting index is a boundary element")
         var startIndex = startingIndex
         var endIndex = startingIndex
-        while (startIndex > 0 && !boundaryElements.contains(array[startIndex])) {
+        while (startIndex > 0 && !boundaryElements.contains(array[startIndex - 1])) {
             startIndex--
         }
-        while (startIndex < array.lastIndex && !boundaryElements.contains(array[endIndex])) {
-            endIndex--
+        while (endIndex < array.lastIndex && !boundaryElements.contains(array[endIndex + 1])) {
+            endIndex++
         }
         return Pair(startIndex, endIndex)
     }
 
     private fun dfs(node: Crossword, visited: Set<Crossword>, depth: Int): Crossword? {
-        if (node.all { it.all { it != null } }) {
+        if (node.all { it.all { it != '.' } }) {
             return node
         }
         if (node !in visited) {
             val newVisited = visited.plusElement(node)
-            if (node[depth].all { it != null }) {
+            if (node[depth].all { it != '.' }) {
                 // If the row we're moving onto is already full, move on
                 val solution = dfs(node, visited, depth + 1)
                 if (solution != null) return solution
             } else {
                 getContinuations(node, depth).shuffled(rng).forEach { neighbor ->
-                    val newDepth = if (neighbor[depth].any { it == null }) depth else (depth + 1).also {
-                        println(
-                            "Advancing a layer after ${
-                                Duration.between(
-                                    start,
-                                    Instant.now()
-                                ).toSeconds()
-                            }"
-                        )
-                    }
+                    val newDepth = if (neighbor[depth].any { it == '.' }) depth else (depth + 1)
                     val solution = dfs(neighbor, newVisited, newDepth)
                     if (solution != null) return solution
                 }
