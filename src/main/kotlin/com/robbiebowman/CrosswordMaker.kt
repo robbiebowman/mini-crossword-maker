@@ -1,6 +1,7 @@
 package com.robbiebowman
 
 import org.example.com.robbiebowman.generateWildcardDictionary
+import java.time.Duration
 import java.time.Instant
 import kotlin.random.Random
 
@@ -8,7 +9,8 @@ import kotlin.random.Random
 class CrosswordMaker(private val rng: Random = Random(Instant.now().epochSecond)) {
 
     private val dictionary: Map<String, Set<String>>
-    private val shapes: Set<Array<Array<Char?>>>
+    private val shapes: Set<Array<Array<Char>>>
+    private val start = Instant.now()
 
     init {
         val words = getBNCFWordsFromFile("1_1_all_fullalpha.txt")
@@ -16,8 +18,6 @@ class CrosswordMaker(private val rng: Random = Random(Instant.now().epochSecond)
 
         shapes = getShapesFromFile("layouts.txt")
     }
-
-    private val dictionaryLookUps = mutableMapOf<String, Boolean>()
 
     private fun initialisePuzzle(): Crossword {
         return shapes.random(rng)
@@ -29,12 +29,13 @@ class CrosswordMaker(private val rng: Random = Random(Instant.now().epochSecond)
 
     private fun getContinuations(current: Crossword, iteratingOnRow: Int): List<Crossword> {
         val row = current[iteratingOnRow]
-            .joinToString("") { it?.toString() ?: "." }
         val template = row.trim()
             .split(' ').filterNot { it.isBlank() }
             .firstOrNull { it.contains(".") }
         if (template == null) return listOf(current)
         val words = dictionary.getValue(template)
+        val (startIndex, endIndex) = getWordBoundaries(row, row.indexOf('.'), setOf('.'))
+        val valid = getContinuationIntersections(current, iteratingOnRow, startIndex, endIndex)
         return words.mapNotNull { w ->
             val templateIndex = row.indexOf(template)
             val new = current.copyOf()
@@ -68,8 +69,49 @@ class CrosswordMaker(private val rng: Random = Random(Instant.now().epochSecond)
         return isUnique && doesntResultInAnyNonWords
     }
 
+
+    // t o #
+    // a r e
+    // . . .
+
+    private fun getContinuationIntersections(
+        puzzle: Crossword,
+        rowIndex: Int,
+        startIndex: Int,
+        endIndex: Int
+    ): Set<String> {
+        val template =
+            puzzle[rowIndex]
+                .sliceArray(startIndex..endIndex)
+                .joinToString("")
+        val verticalTemplates = (startIndex..endIndex).map { i ->
+            val (verticalStart, verticalEnd) = getWordBoundaries(puzzle.map { it[i] }.toTypedArray(), rowIndex, setOf(' '))
+            verticalStart..verticalEnd
+            horizontalWord
+            puzzle[i].sliceArray(verticalStart..verticalEnd).joinToString("")
+        }
+
+
+
+        return verticalTemplates.map { dictionary.getValue(it) }
+            .reduce { acc, strings -> acc.intersect(strings) }
+    }
+
+    private fun <T> getWordBoundaries(array: Array<T>, startingIndex: Int, boundaryElements: Set<T>): Pair<Int, Int> {
+        if (boundaryElements.contains(array[startingIndex])) throw Exception("Starting index is a boundary element")
+        var startIndex = startingIndex
+        var endIndex = startingIndex
+        while (startIndex > 0 && !boundaryElements.contains(array[startIndex])) {
+            startIndex--
+        }
+        while (startIndex < array.lastIndex && !boundaryElements.contains(array[endIndex])) {
+            endIndex--
+        }
+        return Pair(startIndex, endIndex)
+    }
+
     private fun dfs(node: Crossword, visited: Set<Crossword>, depth: Int): Crossword? {
-        if (node.all { it.all { it != null } }){
+        if (node.all { it.all { it != null } }) {
             return node
         }
         if (node !in visited) {
@@ -80,7 +122,16 @@ class CrosswordMaker(private val rng: Random = Random(Instant.now().epochSecond)
                 if (solution != null) return solution
             } else {
                 getContinuations(node, depth).shuffled(rng).forEach { neighbor ->
-                    val newDepth = if (neighbor[depth].any { it == null }) depth else depth + 1
+                    val newDepth = if (neighbor[depth].any { it == null }) depth else (depth + 1).also {
+                        println(
+                            "Advancing a layer after ${
+                                Duration.between(
+                                    start,
+                                    Instant.now()
+                                ).toSeconds()
+                            }"
+                        )
+                    }
                     val solution = dfs(neighbor, newVisited, newDepth)
                     if (solution != null) return solution
                 }
@@ -89,10 +140,10 @@ class CrosswordMaker(private val rng: Random = Random(Instant.now().epochSecond)
         return null
     }
 
-    private fun getShapesFromFile(path: String): Set<Array<Array<Char?>>> {
+    private fun getShapesFromFile(path: String): Set<Array<Array<Char>>> {
         val resource = this::class.java.classLoader.getResource(path)
         val strings = resource!!.readText().split("\\n\\n".toRegex()).flatMap { s ->
-            val shape = s.split("\\n".toRegex()).map { it.map { if (it == 'x') ' ' else null } }
+            val shape = s.split("\\n".toRegex()).map { it.map { if (it == 'x') ' ' else '.' } }
             shape.map { (0..3).map { rotateNTimes(it, shape) } }
         }.flatten().toSet()
         val shapes = strings.map { it.map { it.toTypedArray() }.toTypedArray() }.toSet()
@@ -112,7 +163,7 @@ class CrosswordMaker(private val rng: Random = Random(Instant.now().epochSecond)
             val actualWord = if (word == "@") derived else word
             if (freq.toDouble() > 0.75) actualWord else null
         }.map { it.lowercase().filter { it != '-' } }
-            .filter { it.all { it  in 'a'..'z'} }
+            .filter { it.all { it in 'a'..'z' } }
             .filter { it.length <= 5 }
             .toSet()
             .minus("@")
