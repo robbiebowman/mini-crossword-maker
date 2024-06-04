@@ -1,7 +1,6 @@
 package com.robbiebowman
 
 import org.example.com.robbiebowman.generateWildcardDictionary
-import java.time.Duration
 import java.time.Instant
 import kotlin.random.Random
 
@@ -10,7 +9,6 @@ class CrosswordMaker(private val rng: Random = Random(Instant.now().epochSecond)
 
     private val dictionary: Map<String, Set<String>>
     private val shapes: Set<Array<Array<Char>>>
-    private val start = Instant.now()
 
     init {
         val words = getBNCFWordsFromFile("1_1_all_fullalpha.txt")
@@ -40,26 +38,6 @@ class CrosswordMaker(private val rng: Random = Random(Instant.now().epochSecond)
             new
         }
     }
-
-    private fun existsInDictionary(regex: String) = dictionary.getValue(regex).isNotEmpty()
-
-    private fun validContinuation(puzzle: Crossword): Boolean {
-        val horizontalWords =
-            puzzle.flatMap { it.joinToString("") { it?.toString() ?: "." }.trim().split(" +".toRegex()) }
-        val (fullHorizontalWords, partialHorizontalWords) = horizontalWords.partition { "." !in it }
-        val verticalWords = (0..puzzle.lastIndex)
-            .flatMap { i ->
-                puzzle.map { word -> word[i] }.joinToString("") { it?.toString() ?: "." }.trim().split(" +".toRegex())
-            }
-        val (fullVerticalWords, partialVerticalWords) = verticalWords.partition { "." !in it }
-        val allFullWords = fullHorizontalWords.plus(fullVerticalWords).toSet()
-        val isUnique = allFullWords.size == fullVerticalWords.plus(fullHorizontalWords).size
-        val doesntResultInAnyNonWords = partialHorizontalWords.plus(partialVerticalWords).all { w ->
-            w.length == 1 || existsInDictionary(w)
-        } && allFullWords.all { w -> w.length == 1 || existsInDictionary(w) }
-        return isUnique && doesntResultInAnyNonWords
-    }
-
 
     // t o #
     // a r e
@@ -170,25 +148,6 @@ class CrosswordMaker(private val rng: Random = Random(Instant.now().epochSecond)
             .toSet()
             .minus("@")
             .minus(":")
-        return strings
-    }
-
-    private fun getWordsFromFile(path: String): Set<String> {
-        val resource = this::class.java.classLoader.getResource(path)
-        val strings = resource!!.readText().split("\\n".toRegex()).filter { w ->
-            w.length <= 5 && w.all { it in 'a'..'z' }
-        }.toSet()
-        return strings
-    }
-
-    private fun getRankedWordsFromFile(path: String, minRank: Int): Set<String> {
-        val resource = this::class.java.classLoader.getResource(path)
-        val strings = resource!!.readText().split("\\n".toRegex()).mapNotNull {
-            val (word, rank) = it.split(" - ")
-            if (rank.toInt() < minRank) null else word
-        }.filter { w ->
-            w.length <= 5 && w.all { it in 'a'..'z' }
-        }.toSet()
         return strings
     }
 
