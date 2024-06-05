@@ -9,6 +9,7 @@ class CrosswordMaker(private val rng: Random = Random(Instant.now().epochSecond)
 
     private val dictionary: Map<String, Set<String>>
     private val shapes: Set<Array<Array<Char>>>
+    private val existingWordLookUp = mutableMapOf<Array<Array<Char>>, Set<String>>()
 
     init {
         val words = getBNCFWordsFromFile("1_1_all_fullalpha.txt")
@@ -25,9 +26,9 @@ class CrosswordMaker(private val rng: Random = Random(Instant.now().epochSecond)
         return dfs(initialPuzzle, setOf(), 0)
     }
 
-    private fun getContinuations(current: Crossword, iteratingOnRow: Int): List<Crossword> {
+    private fun getContinuations(current: Crossword, iteratingOnRow: Int): Set<Crossword> {
         val row = current[iteratingOnRow]
-        if (!row.contains('.')) return listOf(current)
+        if (!row.contains('.')) return setOf(current)
         val (startIndex, endIndex) = getWordBoundaries(row, row.indexOf('.'), setOf(' '))
         val valid = getContinuationIntersections(current, iteratingOnRow, startIndex, endIndex)
         return valid.map { w ->
@@ -36,7 +37,18 @@ class CrosswordMaker(private val rng: Random = Random(Instant.now().epochSecond)
                 if (idx < startIndex || idx > endIndex) c else w[idx - startIndex]
             }.toTypedArray()
             new
-        }
+        }.toSet()
+    }
+
+    private fun getExistingWords(puzzle: Crossword): Set<String> {
+        if (existingWordLookUp.contains(puzzle)) return existingWordLookUp.getValue(puzzle)
+        val getAllWords = {cs: List<Char> -> cs.joinToString("").split(' ') }
+        val horizontalWords = puzzle.flatMap { getAllWords(it.toList()) }
+        val columns = rotate90(puzzle.map { it.toList() })
+        val verticalWords = columns.flatMap(getAllWords)
+        val strings = horizontalWords.toSet() + verticalWords.toSet()
+        existingWordLookUp.put(puzzle, strings)
+        return strings
     }
 
     // t o #
@@ -64,14 +76,15 @@ class CrosswordMaker(private val rng: Random = Random(Instant.now().epochSecond)
             val horizontalIntersection = rowIndex - verticalStart
             verticalTemplate to horizontalIntersection
         }
-        val validAnswers = getAllowedHorizontalWords(templateAnswers, verticalTemplates)
+        val validAnswers = getAllowedHorizontalWords(templateAnswers, verticalTemplates, getExistingWords(puzzle))
 
         return validAnswers
     }
 
     private fun getAllowedHorizontalWords(
         candidates: Set<String>,
-        verticalTemplates: List<Pair<String, Int>>
+        verticalTemplates: List<Pair<String, Int>>,
+        existingWords: Set<String>
     ): Set<String> {
         return candidates.filter { word ->
             var i = 0
@@ -81,7 +94,8 @@ class CrosswordMaker(private val rng: Random = Random(Instant.now().epochSecond)
                     horizontalIntersection + 1,
                     word[i++].toString()
                 )
-                dictionary.getValue(newTemplate).isNotEmpty()
+                val remainingVerticalOptions = dictionary.getValue(newTemplate) - existingWords
+                remainingVerticalOptions.isNotEmpty()
             }
         }.toSet()
     }
@@ -133,21 +147,22 @@ class CrosswordMaker(private val rng: Random = Random(Instant.now().epochSecond)
     private fun getBNCFWordsFromFile(path: String): Set<String> {
         val resource = this::class.java.classLoader.getResource(path)
         val lines = resource!!.readText().split("\\n".toRegex())
-        val bncRegex = Regex("^\\t([^\\t]+)+\\t[^\\t]+\\t([^\\t]+)+\\t\\d+\\t\\d+\\t([\\d.]+)")
+        val bncRegex = Regex("^\\t([^\\t]+)+\\t([^\\t]+)\\t([^\\t]+)+\\t\\d+\\t\\d+\\t([\\d.]+)")
         val strings = lines.mapNotNull {
-            val captured = bncRegex.replace(it, "$1 $2 $3").split(" ")
+            val captured = bncRegex.replace(it, "$1 $2 $3 $4").split(" ")
             if (captured.size == 1) {
                 return@mapNotNull null
             }
-            val (word, derived, freq) = captured
+            val (word, tag, derived, freq) = captured
+            if (tag == "NoP" || tag == "Fore") return@mapNotNull null
             val actualWord = if (word == "@") derived else word
-            if (freq.toDouble() > 0.75) actualWord else null
-        }.map { it.lowercase().filter { it != '-' } }
+            if (freq.toDouble() > 0.5) {
+                actualWord
+            } else null
+        }.map { w -> w.lowercase().filter { it != '-' } }
             .filter { it.all { it in 'a'..'z' } }
             .filter { it.length <= 5 }
             .toSet()
-            .minus("@")
-            .minus(":")
         return strings
     }
 

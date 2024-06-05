@@ -10,8 +10,16 @@ fun main() {
     val crosswordMaker = CrosswordMaker()
     val sdf = SimpleDateFormat("hh:mm:ss")
     println("Time is ${sdf.format(Date())}")
-    repeat(10) {
-        val puzzle = crosswordMaker.createCrossword()!!
+    repeat(1) {
+        val puzzle = crosswordMaker.createCrossword(
+            arrayOf(
+                arrayOf('.', '.', '.', '.', '.'),
+                arrayOf('.', '.', '.', '.', '.'),
+                arrayOf('.', '.', '.', '.', '.'),
+                arrayOf('.', '.', '.', '.', '.'),
+                arrayOf('.', '.', '.', '.', '.'),
+            )
+        )!!
         puzzle.forEach {
             println(it.joinToString(" "))
         }
