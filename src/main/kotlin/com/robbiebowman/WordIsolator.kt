@@ -18,4 +18,17 @@ object WordIsolator {
                 WordWithCoordinate(it, x ?: coordinate, y ?: coordinate)
             }
     }
+
+    fun <T> rotate90(matrix: List<List<T>>): List<List<T>> {
+        val rowCount = matrix.size
+        val colCount = matrix[0].size
+        val rotated = MutableList(colCount) { MutableList(rowCount) { matrix[0][0] } }
+
+        for (i in 0 until rowCount) {
+            for (j in 0 until colCount) {
+                rotated[j][rowCount - 1 - i] = matrix[i][j]
+            }
+        }
+        return rotated
+    }
 }

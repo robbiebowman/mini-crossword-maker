@@ -31,3 +31,4 @@ data class WordWithCoordinate(val word: String, val x: Int, val y: Int) {
 }
 
 typealias Crossword = Array<Array<Char>>
+typealias WordOriginalAndFormatted = Pair<String, String>
