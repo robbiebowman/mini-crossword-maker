@@ -1,20 +1,17 @@
 package com.robbiebowman
 
-import org.example.com.robbiebowman.generateWildcardDictionary
+import com.robbiebowman.WordIsolator.rotate90
+import org.example.com.robbiebowman.Dictionary
 import java.time.Instant
 import kotlin.random.Random
 
 
 class CrosswordMaker(private val rng: Random = Random(Instant.now().epochSecond)) {
 
-    private val dictionary: Map<String, Set<String>>
+    private val dictionary: Dictionary = Dictionary()
     private val shapes: Set<Array<Array<Char>>>
-    private val existingWordLookUp = mutableMapOf<Array<Array<Char>>, Set<String>>()
 
     init {
-        val words = getBNCFWordsFromFile("1_1_all_fullalpha.txt")
-        dictionary = generateWildcardDictionary(words.toSet())
-
         shapes = getShapesFromFile("layouts.txt")
     }
 
@@ -38,17 +35,6 @@ class CrosswordMaker(private val rng: Random = Random(Instant.now().epochSecond)
             }.toTypedArray()
             new
         }.toSet()
-    }
-
-    private fun getExistingWords(puzzle: Crossword): Set<String> {
-        if (existingWordLookUp.contains(puzzle)) return existingWordLookUp.getValue(puzzle)
-        val getAllWords = {cs: List<Char> -> cs.joinToString("").split(' ') }
-        val horizontalWords = puzzle.flatMap { getAllWords(it.toList()) }
-        val columns = rotate90(puzzle.map { it.toList() })
-        val verticalWords = columns.flatMap(getAllWords)
-        val strings = horizontalWords.toSet() + verticalWords.toSet()
-        existingWordLookUp.put(puzzle, strings)
-        return strings
     }
 
     // t o #
@@ -76,7 +62,7 @@ class CrosswordMaker(private val rng: Random = Random(Instant.now().epochSecond)
             val horizontalIntersection = rowIndex - verticalStart
             verticalTemplate to horizontalIntersection
         }
-        val validAnswers = getAllowedHorizontalWords(templateAnswers, verticalTemplates, getExistingWords(puzzle))
+        val validAnswers = getAllowedHorizontalWords(templateAnswers, verticalTemplates, dictionary.getExistingWords(puzzle))
 
         return validAnswers
     }
@@ -142,41 +128,6 @@ class CrosswordMaker(private val rng: Random = Random(Instant.now().epochSecond)
         }.flatten().toSet()
         val shapes = strings.map { it.map { it.toTypedArray() }.toTypedArray() }.toSet()
         return shapes
-    }
-
-    private fun getBNCFWordsFromFile(path: String): Set<String> {
-        val resource = this::class.java.classLoader.getResource(path)
-        val lines = resource!!.readText().split("\\n".toRegex())
-        val bncRegex = Regex("^\\t([^\\t]+)+\\t([^\\t]+)\\t([^\\t]+)+\\t\\d+\\t\\d+\\t([\\d.]+)")
-        val strings = lines.mapNotNull {
-            val captured = bncRegex.replace(it, "$1 $2 $3 $4").split(" ")
-            if (captured.size == 1) {
-                return@mapNotNull null
-            }
-            val (word, tag, derived, freq) = captured
-            if (tag == "NoP" || tag == "Fore") return@mapNotNull null
-            val actualWord = if (word == "@") derived else word
-            if (freq.toDouble() > 0.5) {
-                actualWord
-            } else null
-        }.map { w -> w.lowercase().filter { it != '-' } }
-            .filter { it.all { it in 'a'..'z' } }
-            .filter { it.length <= 5 }
-            .toSet()
-        return strings
-    }
-
-    private fun <T> rotate90(matrix: List<List<T>>): List<List<T>> {
-        val rowCount = matrix.size
-        val colCount = matrix[0].size
-        val rotated = MutableList(colCount) { MutableList(rowCount) { matrix[0][0] } }
-
-        for (i in 0 until rowCount) {
-            for (j in 0 until colCount) {
-                rotated[j][rowCount - 1 - i] = matrix[i][j]
-            }
-        }
-        return rotated
     }
 
     private fun <T> rotateNTimes(n: Int, matrix: List<List<T>>): List<List<T>> {
