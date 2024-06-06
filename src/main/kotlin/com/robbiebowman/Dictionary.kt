@@ -1,13 +1,8 @@
 package org.example.com.robbiebowman
 
-import com.robbiebowman.Crossword
-import com.robbiebowman.WordIsolator.rotate90
-
 class Dictionary {
 
     private val dictionary: Map<String, Set<String>>
-
-    private val existingWordLookUp = mutableMapOf<Array<Array<Char>>, Set<String>>()
 
     init {
         val words = getBNCFWordsFromFile("1_1_all_fullalpha.txt")
@@ -16,29 +11,19 @@ class Dictionary {
 
     fun getValue(string: String) = dictionary.getValue(string)
 
-    fun getExistingWords(puzzle: Crossword): Set<String> {
-        if (existingWordLookUp.contains(puzzle)) return existingWordLookUp.getValue(puzzle)
-        val getAllWords = { cs: List<Char> -> cs.joinToString("").split(' ') }
-        val horizontalWords = puzzle.flatMap { getAllWords(it.toList()) }
-        val columns = rotate90(puzzle.map { it.toList() })
-        val verticalWords = columns.flatMap(getAllWords)
-        val strings = (horizontalWords + verticalWords).filter { !it.contains('.') }.toSet()
-        existingWordLookUp[puzzle] = strings
-        return strings
-    }
-
     private fun getBNCFWordsFromFile(path: String): Set<String> {
         val resource = this::class.java.classLoader.getResource(path)
         val lines = resource!!.readText().split("\\n".toRegex())
         val bncRegex = Regex("^\\t([^\\t]+)+\\t([^\\t]+)\\t([^\\t]+)+\\t\\d+\\t\\d+\\t([\\d.]+)")
+        var lastTag = ""
         val strings = lines.mapNotNull {
             val captured = bncRegex.replace(it, "$1 $2 $3 $4").split(" ")
             if (captured.size == 1) {
                 return@mapNotNull null
             }
             val (word, tag, derived, freq) = captured
-            if (tag == "NoP" || tag == "Fore") return@mapNotNull null
-            val actualWord = if (word == "@") derived else word
+            val actualWord = if (word == "@") derived else word.also { lastTag = tag }
+            if (lastTag == "NoP" || lastTag == "Fore") return@mapNotNull null
             if (freq.toDouble() > 0.6) {
                 actualWord
             } else null

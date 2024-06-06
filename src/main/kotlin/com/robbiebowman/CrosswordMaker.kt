@@ -10,6 +10,7 @@ class CrosswordMaker(private val rng: Random = Random(Instant.now().epochSecond)
 
     private val dictionary: Dictionary = Dictionary()
     private val shapes: Set<Array<Array<Char>>>
+    private val existingWordLookUp = mutableMapOf<Array<Array<Char>>, Set<String>>()
 
     init {
         shapes = getShapesFromFile("layouts.txt")
@@ -62,9 +63,20 @@ class CrosswordMaker(private val rng: Random = Random(Instant.now().epochSecond)
             val horizontalIntersection = rowIndex - verticalStart
             verticalTemplate to horizontalIntersection
         }
-        val validAnswers = getAllowedHorizontalWords(templateAnswers, verticalTemplates, dictionary.getExistingWords(puzzle))
+        val validAnswers = getAllowedHorizontalWords(templateAnswers, verticalTemplates, getPuzzleWords(puzzle))
 
         return validAnswers
+    }
+
+    private fun getPuzzleWords(puzzle: Crossword): Set<String> {
+        if (existingWordLookUp.contains(puzzle)) return existingWordLookUp.getValue(puzzle)
+        val getAllWords = { cs: List<Char> -> cs.joinToString("").split(' ') }
+        val horizontalWords = puzzle.flatMap { getAllWords(it.toList()) }
+        val columns = rotate90(puzzle.map { it.toList() })
+        val verticalWords = columns.flatMap(getAllWords)
+        val strings = (horizontalWords + verticalWords).filter { !it.contains('.') }.toSet()
+        existingWordLookUp[puzzle] = strings
+        return strings
     }
 
     private fun getAllowedHorizontalWords(
