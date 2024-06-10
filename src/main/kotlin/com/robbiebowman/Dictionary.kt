@@ -1,5 +1,6 @@
 package org.example.com.robbiebowman
 
+import com.github.doyaaaaaken.kotlincsv.dsl.csvReader
 import com.robbiebowman.Crossword
 import com.robbiebowman.WordIsolator.rotate90
 
@@ -10,7 +11,7 @@ class Dictionary {
     private val existingWordLookUp = mutableMapOf<Array<Array<Char>>, Set<String>>()
 
     init {
-        val words = getBNCFWordsFromFile("1_1_all_fullalpha.txt")
+        val words = getCOCAWordsFromFile("BNC_COCA_lists.csv")
         dictionary = generateWildcardDictionary(words.toSet())
     }
 
@@ -47,6 +48,22 @@ class Dictionary {
             .filter { it.length <= 5 }
             .toSet()
         return strings
+    }
+
+    private fun getCOCAWordsFromFile(path: String): Set<String> {
+        val minFrequency = 40
+        val maxLength = 5
+        val resource = this::class.java.classLoader.getResource(path)
+        val words = csvReader().readAll(resource!!.readText()).drop(1)
+            .flatMap { (listName, headword, relatedForms, totalFrequency, blank) ->
+                val forms = relatedForms.trim('"').split(',').mapNotNull { str ->
+                    val (word, numInParen) = str.trim().split(' ')
+                    val num = numInParen.trim('(', ')').toInt()
+                    if (num < minFrequency || word.length > maxLength) null else word
+                }
+                forms
+            }.toSet()
+        return words
     }
 
     private fun generateWildcardDictionary(words: Set<String>): Map<String, Set<String>> {
