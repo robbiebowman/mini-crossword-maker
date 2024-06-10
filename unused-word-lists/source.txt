@@ -1,3 +1,5 @@
+COCA word list: https://www.eapfoundation.com/vocab/general/bnccoca/
+
 Custom wordlist generated from http://app.aspell.net/create using SCOWL
 with parameters:
   diacritic: strip
