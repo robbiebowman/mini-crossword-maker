@@ -9,7 +9,7 @@ import kotlin.random.Random
 class CrosswordMaker(private val rng: Random = Random(Instant.now().epochSecond)) {
 
     private val dictionary: Dictionary = Dictionary()
-    private val shapes: Set<Array<Array<Char>>>
+    private val shapes: List<Array<Array<Char>>>
 
     init {
         shapes = getShapesFromFile("layouts.txt")
@@ -20,6 +20,8 @@ class CrosswordMaker(private val rng: Random = Random(Instant.now().epochSecond)
     }
 
     fun createCrossword(initialPuzzle: Crossword = initialisePuzzle()): Crossword? {
+        val startingWords = dictionary.getExistingWords(initialPuzzle)
+        dictionary.addWords(startingWords)
         return dfs(initialPuzzle, setOf(), 0)
     }
 
@@ -81,7 +83,7 @@ class CrosswordMaker(private val rng: Random = Random(Instant.now().epochSecond)
                     word[i++].toString()
                 )
                 val remainingVerticalOptions = dictionary.getValue(newTemplate) - existingWords
-                remainingVerticalOptions.isNotEmpty()
+                remainingVerticalOptions.isNotEmpty() || template == newTemplate
             }
         }.toSet()
     }
@@ -120,13 +122,13 @@ class CrosswordMaker(private val rng: Random = Random(Instant.now().epochSecond)
         return null
     }
 
-    private fun getShapesFromFile(path: String): Set<Array<Array<Char>>> {
+    private fun getShapesFromFile(path: String): List<Array<Array<Char>>> {
         val resource = this::class.java.classLoader.getResource(path)
         val strings = resource!!.readText().split("\\n\\n".toRegex()).flatMap { s ->
             val shape = s.split("\\n".toRegex()).map { it.map { if (it == 'x') ' ' else '.' } }
             shape.map { (0..3).map { rotateNTimes(it, shape) } }
         }.flatten().toSet()
-        val shapes = strings.map { it.map { it.toTypedArray() }.toTypedArray() }.toSet()
+        val shapes = strings.map { it.map { it.toTypedArray() }.toTypedArray() }
         return shapes
     }
 

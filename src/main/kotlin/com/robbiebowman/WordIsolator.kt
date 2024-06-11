@@ -26,7 +26,7 @@ object WordIsolator {
 
         for (i in 0 until rowCount) {
             for (j in 0 until colCount) {
-                rotated[j][rowCount - 1 - i] = matrix[i][j]
+                rotated[colCount - 1 - j][i] = matrix[i][j]
             }
         }
         return rotated

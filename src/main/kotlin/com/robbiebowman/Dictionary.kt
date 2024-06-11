@@ -6,13 +6,21 @@ import com.robbiebowman.WordIsolator.rotate90
 
 class Dictionary {
 
-    private val dictionary: Map<String, Set<String>>
+    private val dictionary: MutableMap<String, Set<String>>
 
     private val existingWordLookUp = mutableMapOf<Array<Array<Char>>, Set<String>>()
 
     init {
         val words = getCOCAWordsFromFile("BNC_COCA_lists.csv")
         dictionary = generateWildcardDictionary(words.toSet())
+    }
+
+    fun addWords(words: Set<String>) {
+        val variations = generateWildcardDictionary(words)
+        variations.forEach { (template, answers) ->
+            val existingAnswers = dictionary[template] ?: emptySet()
+            dictionary[template] = existingAnswers + answers
+        }
     }
 
     fun getValue(string: String) = dictionary.getValue(string)
@@ -23,7 +31,7 @@ class Dictionary {
         val horizontalWords = puzzle.flatMap { getAllWords(it.toList()) }
         val columns = rotate90(puzzle.map { it.toList() })
         val verticalWords = columns.flatMap(getAllWords)
-        val strings = (horizontalWords + verticalWords).filter { !it.contains('.') }.toSet()
+        val strings = (horizontalWords + verticalWords).filter { !it.contains('.') }.filter { it.isNotEmpty() }.toSet()
         existingWordLookUp[puzzle] = strings
         return strings
     }
@@ -66,7 +74,7 @@ class Dictionary {
         return words
     }
 
-    private fun generateWildcardDictionary(words: Set<String>): Map<String, Set<String>> {
+    private fun generateWildcardDictionary(words: Set<String>): MutableMap<String, Set<String>> {
         val dict = mutableMapOf<String, Set<String>>().withDefault { emptySet() }
         words.forEach { w ->
             val variations = generateAllWildcardVariations(w)
