@@ -58,7 +58,7 @@ class Dictionary {
         return strings
     }
 
-    private fun getCOCAWordsFromFile(path: String): Set<String> {
+    fun getCOCAWordsFromFile(path: String): Set<String> {
         val minFrequency = 40
         val maxLength = 5
         val resource = this::class.java.classLoader.getResource(path)
