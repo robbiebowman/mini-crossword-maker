@@ -19,7 +19,11 @@ data class Slot(
 
 // Cell class to keep track of the slots associated with each cell
 data class Cell(
-    var letter: Char = ' ', var isBlack: Boolean = false, var acrossSlot: Slot? = null, var downSlot: Slot? = null
+    var letter: Char = ' ',
+    var isBlack: Boolean = false,
+    var isPreFilled: Boolean = false,
+    var acrossSlot: Slot? = null,
+    var downSlot: Slot? = null
 )
 
 fun main() {
@@ -27,7 +31,7 @@ fun main() {
     val dictionary = mutableMapOf<Int, MutableSet<String>>()
 
     // Replace "dictionary.txt" with the path to your dictionary file
-    val allWords = Dictionary().getCOCAWordsFromFile("BNC_COCA_lists.csv")
+    val allWords = Dictionary().getCOCAWordsFromFile("BNC_COCA_lists.csv") + "euros" + "reno" + "noah" + "honk"
     for (word in allWords) {
         val w = word.trim().lowercase()
         if (w.length in 2..5 && w.all { it in 'a'..'z' }) {
@@ -39,16 +43,28 @@ fun main() {
     val grid = Array(gridSize) { Array(gridSize) { Cell() } }
     val random = Random(System.currentTimeMillis())
 
-    // Example grid with black squares ('#')
+    // Example grid with black squares ('#') and pre-filled letters
     /*
      * Grid representation:
      *  [ ][ ][#][ ][ ]
      *  [ ][ ][ ][ ][ ]
-     *  [ ][ ][ ][ ][ ]
+     *  [R][ ][ ][ ][ ]
      *  [ ][ ][ ][ ][ ]
      *  [ ][ ][ ][ ][ ]
      */
-    grid[0][2].isBlack = true // Black square at (0,2)
+
+    // Black square at (0,2)
+    grid[0][3].isBlack = true
+    grid[0][4].isBlack = true
+    grid[1][4].isBlack = true
+
+    grid[3][0].isBlack = true
+    grid[4][0].isBlack = true
+    grid[4][1].isBlack = true
+
+    // Pre-filled letter 'R' at (2,0)
+//    grid[2][0].letter = 'r'
+//    grid[2][0].isPreFilled = true
 
     // Function to identify slots in the grid
     fun identifySlots(): List<Slot> {
@@ -115,7 +131,7 @@ fun main() {
     }
 
     // Function to get positions of a slot in the grid
-    fun crossingSlotPositions(slot: Slot): List<Pair<Int, Int>> {
+    fun slotPositions(slot: Slot): List<Pair<Int, Int>> {
         val positions = mutableListOf<Pair<Int, Int>>()
         for (i in 0 until slot.length) {
             val row = if (slot.isAcross) slot.row else slot.row + i
@@ -127,12 +143,18 @@ fun main() {
 
     // Function to check if assigning a word to a slot is consistent with current assignments
     fun isConsistent(slot: Slot, word: String): Boolean {
+        val positions = slotPositions(slot)
         for (i in 0 until slot.length) {
-            val row = if (slot.isAcross) slot.row else slot.row + i
-            val col = if (slot.isAcross) slot.col + i else slot.col
+            val (row, col) = positions[i]
             val cell = grid[row][col]
             val letter = word[i]
 
+            // Respect pre-filled letters
+            if (cell.isPreFilled && cell.letter != letter) {
+                return false
+            }
+
+            // Check for conflicting assignments
             if (cell.letter != ' ' && cell.letter != letter) {
                 return false
             }
@@ -140,9 +162,8 @@ fun main() {
             // Check the crossing slot's possible words
             val crossingSlot = if (slot.isAcross) cell.downSlot else cell.acrossSlot
             if (crossingSlot != null && crossingSlot.assignedWord == null) {
-                val positions = crossingSlotPositions(crossingSlot)
-                val indexInCrossingSlot = positions.indexOf(Pair(row, col))
-                val matchingWords = crossingSlot.possibleWords.filter { it[indexInCrossingSlot] == letter }
+                val crossingIndex = if (slot.isAcross) row - crossingSlot.row else col - crossingSlot.col
+                val matchingWords = crossingSlot.possibleWords.filter { it[crossingIndex] == letter }
                 if (matchingWords.isEmpty()) {
                     return false
                 }
@@ -154,25 +175,29 @@ fun main() {
     // Function to assign a word to a slot and update the grid
     fun assignWord(slot: Slot, word: String) {
         slot.assignedWord = word
+        val positions = slotPositions(slot)
         for (i in 0 until slot.length) {
-            val row = if (slot.isAcross) slot.row else slot.row + i
-            val col = if (slot.isAcross) slot.col + i else slot.col
-            grid[row][col].letter = word[i]
+            val (row, col) = positions[i]
+            val cell = grid[row][col]
+            cell.letter = word[i]
         }
     }
 
     // Function to unassign a word from a slot and update the grid
     fun unassignWord(slot: Slot) {
         slot.assignedWord = null
+        val positions = slotPositions(slot)
         for (i in 0 until slot.length) {
-            val row = if (slot.isAcross) slot.row else slot.row + i
-            val col = if (slot.isAcross) slot.col + i else slot.col
+            val (row, col) = positions[i]
             val cell = grid[row][col]
             val otherSlot = if (slot.isAcross) cell.downSlot else cell.acrossSlot
-            if (otherSlot == null || otherSlot.assignedWord == null) {
-                cell.letter = ' '
-            } else {
-                cell.letter = otherSlot.assignedWord!![if (slot.isAcross) row - otherSlot.row else col - otherSlot.col]
+            if (!cell.isPreFilled) {
+                if (otherSlot == null || otherSlot.assignedWord == null) {
+                    cell.letter = ' '
+                } else {
+                    val otherIndex = if (slot.isAcross) row - otherSlot.row else col - otherSlot.col
+                    cell.letter = otherSlot.assignedWord!![otherIndex]
+                }
             }
         }
     }
@@ -180,9 +205,9 @@ fun main() {
     // Function to backup possible words before forward checking
     fun backupPossibleWords(slot: Slot): Map<Slot, Set<String>> {
         val backups = mutableMapOf<Slot, Set<String>>()
+        val positions = slotPositions(slot)
         for (i in 0 until slot.length) {
-            val row = if (slot.isAcross) slot.row else slot.row + i
-            val col = if (slot.isAcross) slot.col + i else slot.col
+            val (row, col) = positions[i]
             val cell = grid[row][col]
             val crossingSlot = if (slot.isAcross) cell.downSlot else cell.acrossSlot
             if (crossingSlot != null && crossingSlot.assignedWord == null && crossingSlot !in backups) {
@@ -194,16 +219,16 @@ fun main() {
 
     // Function to perform forward checking after assigning a word
     fun forwardCheck(slot: Slot): Boolean {
+        val positions = slotPositions(slot)
         for (i in 0 until slot.length) {
-            val row = if (slot.isAcross) slot.row else slot.row + i
-            val col = if (slot.isAcross) slot.col + i else slot.col
+            val (row, col) = positions[i]
             val cell = grid[row][col]
             val letter = cell.letter
 
             val crossingSlot = if (slot.isAcross) cell.downSlot else cell.acrossSlot
             if (crossingSlot != null && crossingSlot.assignedWord == null) {
-                val indexInCrossingSlot = if (slot.isAcross) row - crossingSlot.row else col - crossingSlot.col
-                val newPossibleWords = crossingSlot.possibleWords.filter { it[indexInCrossingSlot] == letter }
+                val crossingIndex = if (slot.isAcross) row - crossingSlot.row else col - crossingSlot.col
+                val newPossibleWords = crossingSlot.possibleWords.filter { it[crossingIndex] == letter }
                 if (newPossibleWords.isEmpty()) {
                     return false
                 } else {
@@ -256,11 +281,10 @@ fun main() {
         return false
     }
 
-
     // Start filling the grid
     if (fillGrid()) {
         // Output the grid
-        println("Generated 5x5 Mini Crossword with Black Squares:")
+        println("Generated 5x5 Mini Crossword with Black Squares and Pre-filled Letters:")
         for (row in grid) {
             println(row.joinToString("") {
                 when {
