@@ -1,103 +1,69 @@
-package org.example.com.robbiebowman
+package com.robbiebowman
 
 import com.github.doyaaaaaken.kotlincsv.dsl.csvReader
-import com.robbiebowman.Crossword
-import com.robbiebowman.WordIsolator.rotate90
 
-class Dictionary {
+/**
+ * An immutable word list, indexed by every wildcard pattern a word can match ('.' = unknown letter),
+ * e.g. "cat" is reachable via "cat", ".at", "c.t", "...", etc.
+ *
+ * Instances are immutable once built, so a single instance can safely be shared between threads.
+ */
+class Dictionary internal constructor(private val frequencies: Map<String, Int>) {
 
-    private val dictionary: MutableMap<String, Set<String>>
+    constructor() : this(loadCocaWords(DEFAULT_WORD_LIST))
 
-    private val existingWordLookUp = mutableMapOf<Array<Array<Char>>, Set<String>>()
+    private val patternIndex: Map<String, List<String>> = buildPatternIndex(frequencies.keys)
 
-    init {
-        val words = getCOCAWordsFromFile("BNC_COCA_lists.csv")
-        dictionary = generateWildcardDictionary(words.toSet())
-    }
+    val size: Int get() = frequencies.size
 
-    fun addWords(words: Set<String>) {
-        val variations = generateWildcardDictionary(words)
-        variations.forEach { (template, answers) ->
-            val existingAnswers = dictionary[template] ?: emptySet()
-            dictionary[template] = existingAnswers + answers
-        }
-    }
+    operator fun contains(word: String): Boolean = word in frequencies
 
-    fun getValue(string: String) = dictionary.getValue(string)
+    /** Corpus frequency of [word], or 0 if it isn't in the dictionary. */
+    fun frequency(word: String): Int = frequencies[word] ?: 0
 
-    fun getExistingWords(puzzle: Crossword): Set<String> {
-        if (existingWordLookUp.contains(puzzle)) return existingWordLookUp.getValue(puzzle)
-        val getAllWords = { cs: List<Char> -> cs.joinToString("").split(' ') }
-        val horizontalWords = puzzle.flatMap { getAllWords(it.toList()) }
-        val columns = rotate90(puzzle.map { it.toList() })
-        val verticalWords = columns.flatMap(getAllWords)
-        val strings = (horizontalWords + verticalWords).filter { !it.contains('.') }.filter { it.isNotEmpty() }.toSet()
-        existingWordLookUp[puzzle] = strings
-        return strings
-    }
+    /** All words matching [pattern], where '.' matches any letter. */
+    fun matching(pattern: String): List<String> = patternIndex[pattern] ?: emptyList()
 
-    private fun getBNCFWordsFromFile(path: String): Set<String> {
-        val resource = this::class.java.classLoader.getResource(path)
-        val lines = resource!!.readText().split("\\n".toRegex())
-        val bncRegex = Regex("^\\t([^\\t]+)+\\t([^\\t]+)\\t([^\\t]+)+\\t\\d+\\t\\d+\\t([\\d.]+)")
-        val strings = lines.mapNotNull {
-            val captured = bncRegex.replace(it, "$1 $2 $3 $4").split(" ")
-            if (captured.size == 1) {
-                return@mapNotNull null
-            }
-            val (word, tag, derived, freq) = captured
-            if (tag == "NoP" || tag == "Fore") return@mapNotNull null
-            val actualWord = if (word == "@") derived else word
-            if (freq.toDouble() > 0.6) {
-                actualWord
-            } else null
-        }.map { w -> w.lowercase().filter { it != '-' } }
-            .filter { it.all { it in 'a'..'z' } }
-            .filter { it.length <= 5 }
-            .toSet()
-        return strings
-    }
+    companion object {
+        private const val DEFAULT_WORD_LIST = "BNC_COCA_lists.csv"
+        private const val MIN_FREQUENCY = 40
+        private const val MAX_LENGTH = 5
 
-    private fun getCOCAWordsFromFile(path: String): Set<String> {
-        val minFrequency = 40
-        val maxLength = 5
-        val resource = this::class.java.classLoader.getResource(path)
-        val words = csvReader().readAll(resource!!.readText()).drop(1)
-            .flatMap { (listName, headword, relatedForms, totalFrequency, blank) ->
-                val forms = relatedForms.trim('"').split(',').mapNotNull { str ->
-                    val (word, numInParen) = str.trim().split(' ')
-                    val num = numInParen.trim('(', ')').toInt()
-                    if (num < minFrequency || word.length > maxLength) null else word
+        /** Builds a dictionary from an explicit word list. Mostly useful for tests. */
+        fun of(words: Collection<String>): Dictionary = Dictionary(words.associateWith { 1 })
+
+        private fun loadCocaWords(path: String): Map<String, Int> {
+            val resource = Dictionary::class.java.classLoader.getResource(path)
+                ?: error("Word list $path not found on classpath")
+            val frequencies = mutableMapOf<String, Int>()
+            csvReader().readAll(resource.readText()).drop(1).forEach { row ->
+                val relatedForms = row[2]
+                relatedForms.trim('"').split(',').forEach { form ->
+                    val parts = form.trim().split(' ')
+                    if (parts.size != 2) return@forEach
+                    val word = parts[0].lowercase()
+                    val frequency = parts[1].trim('(', ')').toIntOrNull() ?: return@forEach
+                    if (frequency < MIN_FREQUENCY || word.length > MAX_LENGTH) return@forEach
+                    if (!word.all { it in 'a'..'z' }) return@forEach
+                    // The same form can appear under several headwords; keep its highest count.
+                    frequencies[word] = maxOf(frequencies[word] ?: 0, frequency)
                 }
-                forms
-            }.toSet()
-        return words
-    }
-
-    private fun generateWildcardDictionary(words: Set<String>): MutableMap<String, Set<String>> {
-        val dict = mutableMapOf<String, Set<String>>().withDefault { emptySet() }
-        words.forEach { w ->
-            val variations = generateAllWildcardVariations(w)
-            variations.forEach { v ->
-                dict[v] = dict.getValue(v).plus(w)
             }
+            return frequencies
         }
-        return dict
-    }
 
-    private fun generateCombinationsHelper(word: String, current: String, results: MutableList<String>) {
-        if (current.length == word.length) {
-            results.add(current)
-            return
+        private fun buildPatternIndex(words: Collection<String>): Map<String, List<String>> {
+            val index = HashMap<String, MutableList<String>>()
+            words.forEach { word ->
+                val chars = word.toCharArray()
+                for (mask in 0 until (1 shl word.length)) {
+                    for (i in chars.indices) {
+                        chars[i] = if (mask and (1 shl i) != 0) '.' else word[i]
+                    }
+                    index.getOrPut(String(chars)) { mutableListOf() }.add(word)
+                }
+            }
+            return index
         }
-        val nextIndex = current.length
-        generateCombinationsHelper(word, "$current.", results)
-        generateCombinationsHelper(word, current + word[nextIndex], results)
-    }
-
-    private fun generateAllWildcardVariations(word: String): Set<String> {
-        val results = mutableListOf<String>()
-        generateCombinationsHelper(word, "", results)
-        return results.toSet()
     }
 }
